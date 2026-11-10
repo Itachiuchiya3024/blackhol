@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #010103; height: 100vh; color: #ddd; font-family: Arial, sans-serif; }
+        #canvas-container { position: absolute; inset: 0; }
+        canvas { display: block; width: 100%; height: 100%; }
+        #optionsButton { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); z-index: 21; width: 48px; height: 48px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 18px 60px rgba(0,0,0,0.25); transition: transform 0.2s ease, background 0.2s ease; }
+        #optionsButton:hover { background: rgba(255,255,255,0.16); transform: translateY(-50%) scale(1.04); }
+        #scienceHud { position:absolute; inset:16px auto auto 16px; z-index:30; width:260px; min-width:225px; min-height:190px; max-width:75vw; max-height:75vh; resize:both; overflow:auto; padding:12px; border:1px solid rgba(150,180,255,.3); border-radius:16px; background:linear-gradient(145deg,rgba(11,18,33,.94),rgba(3,7,15,.88)); box-shadow:0 18px 55px rgba(0,0,0,.58),inset 0 1px rgba(255,255,255,.04); pointer-events:none; opacity:0; visibility:hidden; transform:translateX(-14px); transition:opacity .22s ease,transform .22s ease,visibility .22s; backdrop-filter:blur(14px); scrollbar-width:thin; scrollbar-color:#7b55b5 #09101d; }
+        #scienceHud::-webkit-scrollbar { width:7px; height:7px; } #scienceHud::-webkit-scrollbar-track { background:#09101d; border-radius:8px; } #scienceHud::-webkit-scrollbar-thumb { background:linear-gradient(#9e70dd,#593d89); border:2px solid #09101d; border-radius:8px; } #scienceHud::-webkit-scrollbar-corner { background:#09101d; }
+        #scienceHud.open { pointer-events:auto; opacity:1; visibility:visible; transform:translateX(0); }
+        #hudDrag { display:flex; align-items:center; justify-content:space-between; cursor:move; user-select:none; padding-bottom:6px; border-bottom:1px solid rgba(179,196,255,.12); } #hudDrag h1 { margin:0; font-size:12px; letter-spacing:.1em; color:#d8ceff; } #closeHud { width:22px; height:22px; padding:0!important; font-size:15px!important; line-height:1; } #scienceHud::after { content:'↘'; position:absolute; right:3px; bottom:1px; color:#a883e8; font-size:12px; pointer-events:none; }
+        #scienceHud .tag { color:#8f9ab8; font-size:8px; letter-spacing:.06em; margin:6px 0 2px; } #scienceHud .modes { display:flex; gap:4px; margin:9px 0 7px; } #scienceHud .modes button { flex:1; } #scienceHud button { cursor:pointer; color:#e5e8f7; background:#10192a; border:1px solid #52668f77; border-radius:7px; padding:6px; font-size:9px; letter-spacing:.03em; transition:.18s ease; } #scienceHud button:hover { background:#1b2944; } #scienceHud button.active { border-color:#b986ff; background:linear-gradient(135deg,#5c398b,#3d285e); box-shadow:0 0 12px #a46bff33; } #scienceHud .section { border-top:1px solid rgba(179,196,255,.12); padding-top:8px; margin-top:8px; } #scienceHud label { display:flex; justify-content:space-between; align-items:center; font-size:10px; color:#d7dbea; margin:7px 0 4px; } #scienceHud input[type=range] { width:100%; height:5px; appearance:none; -webkit-appearance:none; border-radius:6px; background:#263249; outline:none; } #scienceHud input[type=range]::-webkit-slider-thumb { appearance:none; -webkit-appearance:none; width:15px; height:15px; border-radius:50%; border:2px solid #e2d2ff; background:#9d63ee; box-shadow:0 0 9px #a46bffaa; cursor:pointer; } #scienceHud output { color:#c394ff; font-weight:600; } #scienceHud .switch { min-width:36px; } #scienceHud .metric { display:flex; justify-content:space-between; padding:3px 0; color:#bfc7dc; font-size:9px; } #scienceHud .metric output { color:#bb8cff; } #scienceHud .note { color:#8f9ab2; font-size:8px; line-height:1.4; margin:7px 0 0; }
+        #scienceHud.quantum-tools .classical-tools, #scienceHud.classical-tools .quantum-tools { display:none; }
+        #toolTabs { display:flex; gap:5px; margin:0 0 8px; } #toolTabs button { flex:1; }
+        body.presentation #scienceHud { width:250px; opacity:.82; } body.presentation #ui-panel,body.presentation #optionsButton { display:none; }
+        #ui-panel { position: absolute; right: 16px; bottom: 16px; z-index: 20; max-width:min(390px,calc(100vw - 32px)); max-height:42vh; overflow-y:auto; background: rgba(3, 6, 12, 0.88); padding:10px 12px; display: flex; flex-wrap: wrap; gap:8px; align-items: center; border-radius:12px; box-shadow:0 18px 60px rgba(0,0,0,.45); opacity:0; visibility:hidden; transform:translateY(16px); transition:opacity .24s ease,transform .24s ease,visibility .24s ease; pointer-events:none; }
+        #ui-panel.open { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; }
+        #ui-panel .control { display: flex; flex-direction: column; gap: 5px; min-width: 145px; }
+        #ui-panel label { font-size: 0.92rem; color: #e5e5e5; }
+        #ui-panel input[type=range] { width: 100%; }
+        #ui-panel button { cursor: pointer; border: none; background: #16213e; color: #fff; padding: 8px 14px; border-radius: 8px; transition: background 0.2s; }
+        #ui-panel button:hover { background: #22316a; }
+        #ui-panel span.value { font-weight: 600; color: #fff; }
+    </style>
+</head>
+<body>
+<div id="canvas-container"></div>
+<section id="scienceHud"><div id="hudDrag" title="Drag to move · double-click to enlarge"><h1>BLACK HOLE CONTROLS</h1><button id="closeHud" title="Close controls">×</button></div><div class="tag">DRAG HEADER TO MOVE · DOUBLE-CLICK HEADER TO ENLARGE</div><div class="modes"><button data-view="classical" class="active">CLASSICAL</button><button data-view="quantum">QUANTUM</button><button data-view="combined">COMBINED</button></div><div id="toolTabs"><button id="showClassical" class="active">CLASSICAL TOOLS</button><button id="showQuantum">QUANTUM TOOLS</button><button id="showBoth">BOTH</button></div><div class="section classical-tools"><label>Mass <output id="qMass">10.0 M☉</output></label><input id="qMassInput" type="range" min="1" max="100" step=".1" value="10"><label>Accretion rate <output id="qAccretion">0.70</output></label><input id="qAccretionInput" type="range" min=".1" max="1.5" step=".01" value=".7"><p class="note">Spacetime curvature, grid and light beam controls are in the small legacy panel.</p></div><div class="section quantum-tools"><label>Quantum layer <button class="switch" id="qLayer">OFF</button></label><label>Hawking radiation <button class="switch active" id="qRadiation">ON</button></label><label>Conceptual pairs <button class="switch active" id="qPairs">ON</button></label><label>Radiation intensity <output id="qIntensity">1.00</output></label><input id="qIntensityInput" type="range" min="0" max="2" step=".05" value="1"><label>Quantum density <output id="qDensity">700</output></label><input id="qDensityInput" type="range" min="100" max="1200" step="100" value="700"></div><div class="section"><div class="metric">Radius <output id="schwarzschild"></output></div><div class="metric">Hawking temp. <output id="hawkingTemp"></output></div><div class="metric">View <output id="viewInfo">Classical</output></div><button id="qCamera">CINEMATIC</button> <button id="presentMode">PRESENT</button></div></section>
+<div id="ui-panel">
+    <div class="control">
+        <label>Quantum options</label>
+        <button id="openQuantumPanel">Open quantum controls</button>
+    </div>
+    <div class="control">
+        <label>Particle density: <span id="densityValue" class="value">100%</span></label>
+        <input id="density" type="range" min="20" max="100" value="100">
+    </div>
+    <div class="control">
+        <label>Spacetime curvature</label>
+        <button id="toggleCurvature">Off</button>
+    </div>
+    <div class="control" id="horizontalGridControl" style="display: none;">
+        <label>Horizontal grid</label>
+        <button id="toggleHorizontalGrid">Show</button>
+    </div>
+    <div class="control">
+        <label>Beam mode</label>
+        <button id="toggleBeamMode">Activate</button>
+    </div>
+    <div class="control" id="beamDirectionControl" style="display: none;">
+        <label>Beam yaw: <span id="beamYawValue" class="value">0°</span></label>
+        <input id="beamYaw" type="range" min="0" max="360" value="0">
+    </div>
+    <div class="control" id="beamPitchControl" style="display: none;">
+        <label>Beam pitch: <span id="beamPitchValue" class="value">0°</span></label>
+        <input id="beamPitch" type="range" min="-60" max="60" value="0">
+    </div>
+    <div class="control">
+        <label>Curvature strength: <span id="curvatureValue" class="value">1.0</span></label>
+        <input id="curvatureScale" type="range" min="0" max="200" value="100">
+    </div>
+</div>
+<div id="optionsButton" title="Show options">☰</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(60, 30, 60);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.6;
+    const canvasContainer = document.getElementById('canvas-container');
+    canvasContainer.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.03;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.4;
+
+    const noiseChunk = `
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+        float snoise(vec3 v) {
+            const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+            const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+            vec3 i  = floor(v + dot(v, C.yyy) );
+            vec3 x0 = v - i + dot(i, C.xxx) ;
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min( g.xyz, l.zxy );
+            vec3 i2 = max( g.xyz, l.zxy );
+            vec3 x1 = x0 - i1 + C.xxx;
+            vec3 x2 = x0 - i2 + C.yyy;
+            vec3 x3 = x0 - D.yyy;
+            i = mod289(i);
+            vec4 p = permute( permute( permute( i.z + vec4(0.0, i1.z, i2.z, 1.0 )) + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+            float n_ = 0.142857142857;
+            vec3  ns = n_ * D.wyz - D.xzx;
+            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_ );
+            vec4 x = x_ *ns.x + ns.yyyy;
+            vec4 y = y_ *ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+            vec4 b0 = vec4( x.xy, y.xy );
+            vec4 b1 = vec4( x.zw, y.zw );
+            vec4 s0 = floor(b0)*2.0 + 1.0;
+            vec4 s1 = floor(b1)*2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+            vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+            vec3 p0 = vec3(a0.xy,h.x);
+            vec3 p1 = vec3(a0.zw,h.y);
+            vec3 p2 = vec3(a1.xy,h.z);
+            vec3 p3 = vec3(a1.zw,h.w);
+            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+            p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3) ) );
+        }
+    `;
+
+    const coreGroup = new THREE.Group();
+    scene.add(coreGroup);
+
+    const bhMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const bhGeo = new THREE.SphereGeometry(4, 64, 64);
+    coreGroup.add(new THREE.Mesh(bhGeo, bhMat));
+
+    const auraMat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 }, uIntensity: { value: 1.0 } },
+        vertexShader: `
+            varying vec3 vNormal;
+            varying vec3 vView;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vView = normalize(-(modelViewMatrix * vec4(position, 1.0)).xyz);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform float uIntensity;
+            varying vec3 vNormal;
+            varying vec3 vView;
+            void main() {
+                float rim = pow(1.0 - max(dot(vNormal, vView), 0.0), 4.0);
+                gl_FragColor = vec4(vec3(1.0, 0.45, 0.1) * rim * uIntensity * 5.0, 1.0);
+            }
+        `,
+        side: THREE.BackSide, transparent: true, blending: THREE.AdditiveBlending
+    });
+    coreGroup.add(new THREE.Mesh(new THREE.SphereGeometry(4.25, 64, 64), auraMat));
+
+    const instanceCount = 5000;
+    const streakGeo = new THREE.CylinderGeometry(0.01, 0.12, 2.2, 3);
+    streakGeo.rotateX(Math.PI / 2);
+    
+    const diskMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uMorph: { value: 0.1 },
+            uCompression: { value: 1.0 },
+            uIntensity: { value: 1.0 },
+            uOrbitScale: { value: 1.0 }
+        },
+        vertexShader: `
+            ${noiseChunk}
+            uniform float uTime;
+            uniform float uMorph;
+            uniform float uCompression;
+            uniform float uIntensity;
+            uniform float uOrbitScale;
+            varying vec3 vColor;
+            varying float vOpacity;
+            void main() {
+                vec4 instPos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+                float rOriginal = length(instPos.xz);
+                float r = rOriginal * uCompression;
+                float initialAngle = atan(instPos.z, instPos.x);
+                float orbitalVelocity = (4.4 / pow(max(rOriginal, 0.4), 0.75)) * uOrbitScale;
+                float currentAngle = initialAngle + (uTime * orbitalVelocity);
+                vec3 morphedWorldPos = vec3(cos(currentAngle) * r, instPos.y, sin(currentAngle) * r);
+                float noise = snoise(vec3(morphedWorldPos.x * 0.08, morphedWorldPos.z * 0.08, uTime * 0.3));
+                morphedWorldPos.y += noise * uMorph * 4.0;
+                vec3 viewDir = normalize(cameraPosition - morphedWorldPos);
+                vec3 orbitDir = normalize(vec3(-sin(currentAngle), 0.0, cos(currentAngle)));
+                float doppler = dot(orbitDir, viewDir);
+                vec3 hot = vec3(1.0, 0.95, 0.9);
+                vec3 warm = vec3(1.0, 0.45, 0.1);
+                vec3 cool = vec3(0.1, 0.35, 1.0);
+                vec3 color = mix(cool, warm, smoothstep(45.0, 12.0, r));
+                color = mix(color, hot, smoothstep(10.0, 4.0, r));
+                vColor = color * (1.3 + doppler * 0.7) * uIntensity;
+                vOpacity = (smoothstep(3.8, 5.5, r) * (1.0 - smoothstep(38.0, 48.0, r))) * 0.8;
+                float deltaAngle = currentAngle - initialAngle;
+                float c = cos(deltaAngle);
+                float s = sin(deltaAngle);
+                mat3 rotY = mat3(
+                    c, 0, s,
+                    0, 1, 0,
+                   -s, 0, c
+                );
+                vec3 localPos = (instanceMatrix * vec4(position, 0.0)).xyz;
+                vec3 rotatedLocalPos = rotY * localPos;
+                gl_Position = projectionMatrix * viewMatrix * vec4(morphedWorldPos + rotatedLocalPos, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            varying float vOpacity;
+            void main() {
+                gl_FragColor = vec4(vColor, vOpacity);
+            }
+        `,
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+
+    const instancedDisk = new THREE.InstancedMesh(streakGeo, diskMaterial, instanceCount);
+    const dummy = new THREE.Object3D();
+
+    for (let i = 0; i < instanceCount; i++) {
+        const r = 5 + Math.pow(Math.random(), 1.3) * 40;
+        const angle = Math.random() * Math.PI * 2;
+        dummy.position.set(Math.cos(angle) * r, (Math.random() - 0.5) * (8 / r), Math.sin(angle) * r);
+        dummy.lookAt(dummy.position.x + Math.sin(angle), dummy.position.y, dummy.position.z - Math.cos(angle));
+        dummy.updateMatrix();
+        instancedDisk.setMatrixAt(i, dummy.matrix);
+    }
+    scene.add(instancedDisk);
+
+    const densityInput = document.getElementById('density');
+    const densityValue = document.getElementById('densityValue');
+    const curvatureToggleBtn = document.getElementById('toggleCurvature');
+    const horizontalGridControl = document.getElementById('horizontalGridControl');
+    const toggleHorizontalGridBtn = document.getElementById('toggleHorizontalGrid');
+    const beamModeBtn = document.getElementById('toggleBeamMode');
+    const beamDirectionControl = document.getElementById('beamDirectionControl');
+    const beamPitchControl = document.getElementById('beamPitchControl');
+    const beamYawInput = document.getElementById('beamYaw');
+    const beamPitchInput = document.getElementById('beamPitch');
+    const beamYawValue = document.getElementById('beamYawValue');
+    const beamPitchValue = document.getElementById('beamPitchValue');
+    const curvatureScaleInput = document.getElementById('curvatureScale');
+    const curvatureValue = document.getElementById('curvatureValue');
+    const optionsButton = document.getElementById('optionsButton');
+    const uiPanel = document.getElementById('ui-panel');
+
+    let curvatureEnabled = false;
+    let curvatureStrength = 1.0;
+    let horizontalGridEnabled = false;
+    let horizontalGrid;
+    let verticalXGrid;
+    let verticalZGrid;
+    let beamGroup;
+    let beamMaterial;
+    let beamModeEnabled = false;
+    let beamYaw = 0;
+    let beamPitch = 0;
+    let optionsOpen = false;
+    const beamDistance = 110;
+    const beamLength = 120;
+
+    function createWarpedGrid(width, depth, segmentsX, segmentsZ, orientation) {
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const halfW = width * 0.5;
+        const halfD = depth * 0.5;
+        const stepX = width / segmentsX;
+        const stepZ = depth / segmentsZ;
+
+        for (let xi = 0; xi <= segmentsX; xi++) {
+            for (let zi = 0; zi <= segmentsZ; zi++) {
+                if (orientation === 'horizontal') {
+                    positions.push(xi * stepX - halfW, 0, zi * stepZ - halfD);
+                } else if (orientation === 'verticalX') {
+                    positions.push(0, xi * stepX - halfW, zi * stepZ - halfD);
+                } else {
+                    positions.push(xi * stepX - halfW, zi * stepZ - halfD, 0);
+                }
+            }
+        }
+
+        const indices = [];
+        const rows = segmentsZ + 1;
+        for (let xi = 0; xi < segmentsX; xi++) {
+            for (let zi = 0; zi <= segmentsZ; zi++) {
+                const a = zi + xi * rows;
+                const b = zi + (xi + 1) * rows;
+                indices.push(a, b);
+            }
+        }
+        for (let zi = 0; zi < segmentsZ; zi++) {
+            for (let xi = 0; xi <= segmentsX; xi++) {
+                const a = xi + zi * (segmentsX + 1);
+                const b = xi + (zi + 1) * (segmentsX + 1);
+                indices.push(a, b);
+            }
+        }
+
+        const positionArray = new Float32Array(positions);
+        geometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+        geometry.setIndex(indices);
+
+        const material = new THREE.LineBasicMaterial({ color: 0x6699ff, transparent: true, opacity: 0.22 });
+        const lines = new THREE.LineSegments(geometry, material);
+        lines.userData.basePositions = positionArray.slice();
+        lines.userData.orientation = orientation;
+        return lines;
+    }
+
+    function createCurvatureGrid(width, depth, segmentsX, segmentsZ) {
+        const group = new THREE.Group();
+
+        horizontalGrid = createWarpedGrid(width, depth, segmentsX, segmentsZ, 'horizontal');
+        horizontalGrid.rotation.x = -Math.PI / 2;
+        horizontalGrid.position.y = -2.0;
+        horizontalGrid.visible = false;
+        group.add(horizontalGrid);
+
+        verticalXGrid = createWarpedGrid(width, depth, segmentsX, segmentsZ, 'verticalX');
+        verticalXGrid.rotation.z = Math.PI / 2;
+        verticalXGrid.position.x = -2.0;
+        group.add(verticalXGrid);
+
+        verticalZGrid = createWarpedGrid(width, depth, segmentsX, segmentsZ, 'verticalZ');
+        verticalZGrid.rotation.x = Math.PI / 2;
+        verticalZGrid.position.z = -2.0;
+        group.add(verticalZGrid);
+
+        return group;
+    }
+
+    function createBeam() {
+        const group = new THREE.Group();
+        beamMaterial = new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            uniforms: {
+                uTime: { value: 0 },
+                uColor: { value: new THREE.Color(1.35, 1.0, 0.72) },
+                uFade: { value: 1.0 },
+                uGlow: { value: 1.0 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor;
+                uniform float uFade;
+                uniform float uGlow;
+                varying vec2 vUv;
+                void main() {
+                    float center = 1.0 - abs(vUv.x - 0.5) * 2.0;
+                    float alpha = smoothstep(1.0, 0.2, vUv.y) * pow(max(center, 0.0), 1.8);
+                    alpha *= uFade * uGlow * 1.8;
+                    alpha *= smoothstep(0.98, 0.0, vUv.y);
+                    gl_FragColor = vec4(uColor, alpha);
+                }
+            `
+        });
+        const beamGeometry = new THREE.CylinderGeometry(0.55, 0.08, beamLength, 24, 1, true);
+        beamGeometry.rotateX(Math.PI / 2);
+        beamGeometry.translate(0, 0, beamLength / 2);
+        const beamCount = 18;
+        for (let i = 0; i < beamCount; i++) {
+            const beam = new THREE.Mesh(beamGeometry, beamMaterial);
+            const spread = 0.18;
+            const angle = (i / (beamCount - 1) - 0.5) * Math.PI * 0.06;
+            beam.position.set(Math.sin(angle) * spread, (Math.random() - 0.5) * 0.04, 0);
+            beam.rotation.z = angle * 0.5;
+            group.add(beam);
+        }
+        return group;
+    }
+
+    const curvatureLines = createCurvatureGrid(240, 240, 96, 96);
+    curvatureLines.visible = false;
+    scene.add(curvatureLines);
+
+    const ringMaterial = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+            uTime: { value: 0 },
+            uColor: { value: new THREE.Color(1.0, 0.7, 0.3) }
+        },
+        vertexShader: `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 uColor;
+            uniform float uTime;
+            varying vec2 vUv;
+            void main() {
+                float glow = smoothstep(0.2, 0.6, abs(vUv.x - 0.5)) * (1.0 - smoothstep(0.05, 0.4, abs(vUv.y - 0.5)));
+                glow *= 0.8 + 0.2 * sin(uTime * 2.5);
+                gl_FragColor = vec4(uColor * glow, glow * 0.45);
+            }
+        `
+    });
+    const photonRing = new THREE.Mesh(new THREE.TorusGeometry(8.4, 0.5, 16, 240), ringMaterial);
+    photonRing.rotation.x = Math.PI / 2;
+    scene.add(photonRing);
+
+    beamGroup = createBeam();
+    beamGroup.visible = false;
+    scene.add(beamGroup);
+
+    const fullInstanceCount = instanceCount;
+    instancedDisk.count = fullInstanceCount;
+
+    densityInput.addEventListener('input', (event) => {
+        const density = Number(event.target.value);
+        densityValue.textContent = `${density}%`;
+        instancedDisk.count = Math.max(1, Math.round(fullInstanceCount * density / 100));
+    });
+
+    curvatureToggleBtn.addEventListener('click', () => {
+        curvatureEnabled = !curvatureEnabled;
+        curvatureLines.visible = curvatureEnabled;
+        curvatureToggleBtn.textContent = curvatureEnabled ? 'On' : 'Off';
+        curvatureToggleBtn.style.background = curvatureEnabled ? '#2d4b7f' : '#16213e';
+        horizontalGridControl.style.display = curvatureEnabled ? 'flex' : 'none';
+        if (!curvatureEnabled) {
+            horizontalGridEnabled = false;
+            horizontalGrid.visible = false;
+            toggleHorizontalGridBtn.textContent = 'Show';
+        }
+    });
+
+    toggleHorizontalGridBtn.addEventListener('click', () => {
+        horizontalGridEnabled = !horizontalGridEnabled;
+        horizontalGrid.visible = horizontalGridEnabled;
+        toggleHorizontalGridBtn.textContent = horizontalGridEnabled ? 'Hide' : 'Show';
+    });
+
+    beamModeBtn.addEventListener('click', () => {
+        beamModeEnabled = !beamModeEnabled;
+        beamModeBtn.textContent = beamModeEnabled ? 'Deactivate' : 'Activate';
+        beamDirectionControl.style.display = beamModeEnabled ? 'flex' : 'none';
+        beamPitchControl.style.display = beamModeEnabled ? 'flex' : 'none';
+        instancedDisk.visible = !beamModeEnabled;
+        beamGroup.visible = beamModeEnabled;
+        if (beamModeEnabled) {
+            curvatureLines.visible = false;
+            curvatureEnabled = false;
+            curvatureToggleBtn.textContent = 'Off';
+            curvatureToggleBtn.style.background = '#16213e';
+            horizontalGridControl.style.display = 'none';
+            horizontalGridEnabled = false;
+            horizontalGrid.visible = false;
+            toggleHorizontalGridBtn.textContent = 'Show';
+        }
+    });
+
+    beamYawInput.addEventListener('input', (event) => {
+        beamYaw = Number(event.target.value) * Math.PI / 180;
+        beamYawValue.textContent = `${event.target.value}°`;
+    });
+
+    beamPitchInput.addEventListener('input', (event) => {
+        beamPitch = Number(event.target.value) * Math.PI / 180;
+        beamPitchValue.textContent = `${event.target.value}°`;
+    });
+
+    optionsButton.addEventListener('click', () => {
+        optionsOpen = !optionsOpen;
+        uiPanel.classList.toggle('open', optionsOpen);
+        optionsButton.textContent = optionsOpen ? '✕' : '☰';
+    });
+
+    curvatureScaleInput.addEventListener('input', (event) => {
+        curvatureStrength = Number(event.target.value) / 100.0;
+        curvatureValue.textContent = curvatureStrength.toFixed(1);
+    });
+
+    function updateCurvatureGrid(time) {
+        curvatureLines.children.forEach((lines) => {
+            const positions = lines.geometry.attributes.position.array;
+            const basePositions = lines.userData.basePositions;
+            const mode = lines.userData.orientation;
+            for (let i = 0; i < positions.length; i += 3) {
+                const x = basePositions[i];
+                const y = basePositions[i + 1];
+                const z = basePositions[i + 2];
+                let r;
+                if (mode === 'horizontal') {
+                    r = Math.sqrt(x * x + z * z);
+                    positions[i + 1] = Math.sin(r * 0.06 - time * 1.2) * 1.6 * curvatureStrength - 0.8;
+                } else if (mode === 'verticalX') {
+                    r = Math.sqrt(y * y + z * z);
+                    positions[i] = Math.sin(r * 0.06 - time * 1.2) * 1.6 * curvatureStrength - 1.2;
+                } else {
+                    r = Math.sqrt(x * x + y * y);
+                    positions[i + 2] = Math.sin(r * 0.06 - time * 1.2) * 1.6 * curvatureStrength - 1.2;
+                }
+            }
+            lines.geometry.attributes.position.needsUpdate = true;
+        });
+    }
+
+    // QuantumLayer is deliberately visual/conceptual: its particles are not a Hawking-radiation derivation.
+    class QuantumLayer {
+        constructor() {
+            this.group = new THREE.Group(); this.count = 1200; this.visibleCount = 700;
+            this.positions = new Float32Array(this.count * 3); this.life = new Float32Array(this.count);
+            for (let i = 0; i < this.count; i++) this.reset(i);
+            this.geometry = new THREE.BufferGeometry(); this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+            this.material = new THREE.PointsMaterial({ color: 0xa878ff, size: 0.22, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending });
+            this.points = new THREE.Points(this.geometry, this.material); this.group.add(this.points);
+            this.horizon = new THREE.Mesh(new THREE.TorusGeometry(5.2, .09, 12, 180), new THREE.MeshBasicMaterial({color:0x65d9ff, transparent:true, opacity:.45, blending:THREE.AdditiveBlending})); this.horizon.rotation.x = Math.PI / 2; this.group.add(this.horizon); scene.add(this.group);
+        }
+        reset(i) { const a = Math.random()*Math.PI*2, r = 4.4 + Math.random()*7; this.positions.set([Math.cos(a)*r,(Math.random()-.5)*2.6,Math.sin(a)*r],i*3); this.life[i]=Math.random(); }
+        update(dt, time) { this.group.visible = quantumState.enabled && quantumState.view !== 'classical'; this.material.size=.08 + quantumState.intensity*.16; this.material.opacity=.2+quantumState.intensity*.55; this.horizon.material.opacity=.15+quantumState.intensity*.38; const p=this.positions, n=Math.min(this.visibleCount,quantumState.density); for(let i=0;i<n;i++){ this.life[i]-=dt*(.3+Math.random()*.35); if(this.life[i]<0)this.reset(i); const j=i*3,r=Math.hypot(p[j],p[j+2])||1, v=quantumState.pairs && i%2 ? -.34 : (quantumState.radiation ? (.35+quantumState.intensity) : -.1); p[j]+=p[j]/r*dt*v; p[j+1]+=Math.sin(time+i)*dt*.12; p[j+2]+=p[j+2]/r*dt*v; } this.geometry.setDrawRange(0,n); this.geometry.attributes.position.needsUpdate=true; }
+    }
+    // The presentation opens with the original classical model; quantum visuals are opt-in.
+    const quantumState = { enabled:false, radiation:false, pairs:false, intensity:0, density:700, mass:10, accretion:.7, view:'classical', cinematic:false };
+    const quantumLayer = new QuantumLayer();
+    const q = id => document.getElementById(id);
+    q('hudDrag').querySelector('h1').textContent='QUANTUM CONTROLS';
+    // One menu button reveals both the preserved classical panel and the new quantum panel.
+    // Quantum controls remain hidden until explicitly requested from the classical options panel.
+    q('openQuantumPanel').onclick=()=>q('scienceHud').classList.add('open');
+    function selectToolSet(set) {
+        const hud=q('scienceHud'); hud.classList.remove('classical-tools','quantum-tools');
+        if (set==='classical') hud.classList.add('classical-tools');
+        if (set==='quantum') hud.classList.add('quantum-tools');
+        [['showClassical','classical'],['showQuantum','quantum'],['showBoth','both']].forEach(([id,name])=>q(id).classList.toggle('active',name===set));
+    }
+    q('showClassical').onclick=()=>selectToolSet('classical'); q('showQuantum').onclick=()=>selectToolSet('quantum'); q('showBoth').onclick=()=>selectToolSet('both');
+    selectToolSet('classical');
+    // Closing the quantum palette never changes the separate classical-options panel.
+    q('closeHud').onclick=(event)=>{ event.stopPropagation(); q('scienceHud').classList.remove('open'); };
+    // Compact floating control palette: drag only by its title bar, so sliders still work normally.
+    let dragOffset = null;
+    q('hudDrag').addEventListener('pointerdown', event => { if (event.target.closest('button')) return; const r=q('scienceHud').getBoundingClientRect(); dragOffset={x:event.clientX-r.left,y:event.clientY-r.top}; q('hudDrag').setPointerCapture(event.pointerId); });
+    q('hudDrag').addEventListener('pointermove', event => { if (!dragOffset) return; const hud=q('scienceHud'), r=hud.getBoundingClientRect(); const x=Math.max(8,Math.min(innerWidth-r.width-8,event.clientX-dragOffset.x)), y=Math.max(8,Math.min(innerHeight-r.height-8,event.clientY-dragOffset.y)); hud.style.inset='auto'; hud.style.left=x+'px'; hud.style.top=y+'px'; });
+    q('hudDrag').addEventListener('pointerup', ()=>dragOffset=null);
+    let savedPaletteSize = null;
+    q('hudDrag').addEventListener('dblclick', event => {
+        if (event.target.closest('button')) return;
+        const hud=q('scienceHud');
+        if (savedPaletteSize) {
+            hud.style.width=savedPaletteSize.width; hud.style.height=savedPaletteSize.height; savedPaletteSize=null;
+        } else {
+            savedPaletteSize={width:hud.style.width || hud.offsetWidth+'px',height:hud.style.height || hud.offsetHeight+'px'};
+            hud.style.width=Math.min(520,innerWidth-32)+'px'; hud.style.height=Math.min(620,innerHeight-32)+'px';
+        }
+    });
+    function updateScientificPanel() {
+        const G=6.67430e-11,c=299792458,hbar=1.054571817e-34,kB=1.380649e-23,solarMass=1.98847e30,M=quantumState.mass*solarMass;
+        q('qMass').textContent=quantumState.mass.toFixed(1)+' M☉'; q('qAccretion').textContent=quantumState.accretion.toFixed(2); q('qIntensity').textContent=quantumState.intensity.toFixed(2); q('qDensity').textContent=quantumState.density;
+        q('schwarzschild').textContent=(2*G*M/(c*c)/1000).toFixed(2)+' km'; q('hawkingTemp').textContent=(hbar*c**3/(8*Math.PI*G*M*kB)).toExponential(2)+' K'; q('viewInfo').textContent=quantumState.view[0].toUpperCase()+quantumState.view.slice(1);
+        instancedDisk.visible=quantumState.view!=='quantum'; curvatureLines.visible=curvatureEnabled && quantumState.view!=='quantum';
+        document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===quantumState.view)); ['qLayer','qRadiation','qPairs'].forEach((id,i)=>q(id).classList.toggle('active',[quantumState.enabled,quantumState.radiation,quantumState.pairs][i]));
+        diskMaterial.uniforms.uIntensity.value=quantumState.accretion;
+        q('qLayer').textContent=quantumState.enabled?'ON':'OFF'; q('qRadiation').textContent=quantumState.radiation?'ON':'OFF'; q('qPairs').textContent=quantumState.pairs?'ON':'OFF';
+        q('qIntensityInput').value=quantumState.intensity;
+    }
+    q('qMassInput').oninput=e=>{quantumState.mass=+e.target.value;updateScientificPanel()}; q('qAccretionInput').oninput=e=>{quantumState.accretion=+e.target.value;updateScientificPanel()}; q('qIntensityInput').oninput=e=>{quantumState.intensity=+e.target.value;updateScientificPanel()}; q('qDensityInput').oninput=e=>{quantumState.density=+e.target.value;quantumLayer.visibleCount=quantumState.density;updateScientificPanel()};
+    q('qLayer').onclick=()=>{quantumState.enabled=!quantumState.enabled;updateScientificPanel()}; q('qRadiation').onclick=()=>{quantumState.radiation=!quantumState.radiation;updateScientificPanel()}; q('qPairs').onclick=()=>{quantumState.pairs=!quantumState.pairs;updateScientificPanel()};
+    document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{quantumState.view=b.dataset.view; quantumState.enabled=quantumState.view!=='classical'; updateScientificPanel()}); q('qCamera').onclick=()=>{quantumState.cinematic=!quantumState.cinematic;q('qCamera').classList.toggle('active',quantumState.cinematic)};q('presentMode').onclick=()=>document.body.classList.toggle('presentation');
+    window.addEventListener('keydown',e=>{if('123'.includes(e.key)){quantumState.view=['classical','quantum','combined'][+e.key-1];quantumState.enabled=quantumState.view!=='classical';updateScientificPanel()}if(e.key.toLowerCase()==='p')q('presentMode').click();if(e.key.toLowerCase()==='c')q('qCamera').click()}); updateScientificPanel();
+    const clock = new THREE.Clock();
+    function animate() {
+        const delta = clock.getDelta();
+        const time = clock.elapsedTime;
+        diskMaterial.uniforms.uTime.value = time;
+        auraMat.uniforms.uTime.value = time;
+        quantumLayer.update(delta, time);
+        if (quantumState.cinematic) { const a=time*.075; camera.position.lerp(new THREE.Vector3(Math.cos(a)*62,25,Math.sin(a)*62),.012); }
+        if (curvatureEnabled) updateCurvatureGrid(time);
+        if (beamModeEnabled) {
+            beamMaterial.uniforms.uTime.value = time;
+            beamMaterial.uniforms.uGlow.value = 1.05 + 0.3 * Math.cos(time * 3.0);
+            beamMaterial.uniforms.uFade.value = 1.0 - Math.min(0.5, Math.abs(beamPitch) / (Math.PI / 3));
+            beamGroup.position.set(
+                Math.sin(beamYaw) * beamDistance,
+                Math.sin(beamPitch) * beamDistance,
+                -Math.cos(beamYaw) * beamDistance
+            );
+            beamGroup.lookAt(0, 0, 0);
+        }
+        photonRing.material.uniforms.uTime.value = time;
+        photonRing.rotation.z += 0.003;
+        instancedDisk.rotation.y += 0.0005;
+        controls.update();
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+    }
+
+    function onResize() {
+        const width = canvasContainer.clientWidth;
+        const height = canvasContainer.clientHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+    }
+
+    window.addEventListener('resize', onResize);
+    onResize();
+
+    animate();
+</script>
+</body>
+</html>
